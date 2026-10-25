@@ -1,5 +1,11 @@
 # BNT Mining Lengkap: Relay + Miner — dari nol sampai jalan
 
+> **Mau langsung copy-paste semua command?** Buka
+> [`COMMANDS.md`](COMMANDS.md) — semua command di repo ini
+> ada di sana berurutan, dari download sampai running.
+> README ini penjelasannya; `COMMANDS.md` itu daftar
+> command-nya.
+
 Repo ini berisi **satu paket lengkap** untuk mining Blocknet
 (BNT) ke **pool lama bntpool**, termasuk relay-nya. Satu repo,
 dua mesin, dari download sampai miner jalan dan terverifikasi.
@@ -725,6 +731,9 @@ tidak diteruskan relay). Mining tetap jalan selama
 
 ## Isi repo
 
+- `COMMANDS.md` — **semua command copy-paste**, berurutan:
+  relay, miner, running, download alternatif, troubleshooting
+  satu baris. Mulai dari sini kalau mau langsung jalan.
 - `setup-complete.sh` — setup lengkap: mode `relay` dan
   mode `mining` (bagian 1). Satu-satunya file yang perlu
   di-download untuk mulai dari nol.
