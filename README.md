@@ -8,6 +8,51 @@ menjangkau pool lama secara langsung.
 **Pool tujuan (tetap):** bntpool.com, port 3333, fee pool 2,5%,
 PPLNS 6 jam, minimum payout 0,1 BNT.
 
+## Setup lengkap satu skrip (mining + relay)
+
+Kalau mau dari nol tanpa langkah manual satu per satu, pakai
+`setup-complete.sh` — satu skrip untuk kedua peran. Jalankan
+sebagai root, di mesin yang sesuai:
+
+```bash
+# 1. Di mesin RELAY (A): pasang relay + izinkan IP egress miner B
+./setup-complete.sh relay <IP-EGRESS-MINER-B>
+
+# 2. Di mesin MINER (B): pasang Seine + bakekok, lewat relay A, langsung jalan
+./setup-complete.sh mining --relay <IP-MESIN-RELAY-A> --run
+```
+
+Yang dikerjakan skrip itu, berurutan dan dengan verifikasi
+di tiap langkah:
+
+- **Relay:** salin/download `relay.py` (dicek targetnya harus
+  bntpool), `py_compile`, pasang service systemd + enable,
+  tambah ACCEPT per IP miner **sebelum** DROP 443, simpan
+  aturan permanen, lalu verifikasi service active + listener 443.
+- **Mining:** download Seine v0.2.21 (GitHub dulu, fallback
+  mirror repo — kalau 0 byte, pindah mirror otomatis),
+  verifikasi SHA-256 resmi sebelum ekstrak, `chmod +x`,
+  cek versi, download `bakekok.sh`, lalu **hanya** ubah baris
+  `POOL_URL`-nya: ke `stratum+tcp://<IP-RELAY>:443` kalau
+  pakai `--relay`, atau ke `stratum+tcp://bntpool.com:3333`
+  kalau pakai `--direct`. Kalau `--run`, miner langsung
+  dijalankan + log di-`tail` 15 detik kemudian.
+- **Yang tidak diubah skrip:** `ADDRESS` di `bakekok.sh`
+  (di-download dari repo bnt-seine-runner apa adanya).
+  Kalau ini bukan mesin kamu, ganti ADDRESS dulu sebelum `--run`.
+
+Varian direct (hanya kalau direct terbukti jalan dari mesin itu):
+
+```bash
+./setup-complete.sh mining --direct --run
+```
+
+Dari ArkClaw, direct terbukti gagal (RST), jadi di sana
+pakai `--relay`, bukan `--direct`.
+
+Langkah manual per komponen tetap ada di bawah, kalau kamu
+lebih suka mengerjakan satu per satu.
+
 ## Kenapa relay ini ada
 
 Dua kasus yang sudah terbukti butuh relay:
@@ -107,8 +152,11 @@ mendengarkan di 443 (`ss -ltnp | grep 443`).
 
 ## Isi repo
 
+- `setup-complete.sh` — setup lengkap: mode `relay` dan mode
+  `mining` (lihat atas). Satu-satunya file yang perlu
+  di-download untuk mulai dari nol.
 - `relay.py` — relay-nya (Python 3 stdlib saja). Target
   `bntpool.com:3333`, lengkap dengan perbaikan timeout
   `settimeout(None)` setelah connect.
 - `bnt-relay.service` — unit systemd.
-- `README.md` — tutorial manual ini.
+- `README.md` — tutorial ini.
