@@ -16,10 +16,11 @@
 #   Mesin B (miner) : ./setup-complete.sh mining --relay <IP-Mesin-A> --run
 #   Verifikasi      : log miner harus "login accepted" + share accepted.
 #
-# Catatan alamat: bakekok.sh di-download dari repo bnt-seine-runner
-# dan skrip ini HANYA mengubah baris POOL_URL-nya, tidak mengubah
-# ADDRESS. Kalau skrip ini dipakai orang lain, ganti dulu ADDRESS
-# di bakekok.sh sebelum menjalankan miner (lihat README).
+# Catatan alamat: bakekok.sh di-download dari repo bnt-seine-runner,
+# lalu skrip ini MENULIS ULANG baris POOL_URL dan baris ADDRESS-nya
+# ke alamat produksi di atas, lalu memverifikasi keduanya dengan grep
+# sebelum miner dijalankan. Jadi ADDRESS hasil download yang sempat
+# berbeda di satu Claw tidak akan lolos lagi.
 set -euo pipefail
 
 SEINE_VERSION="v0.2.21"
@@ -27,6 +28,12 @@ SEINE_SHA256="a94248aac209e9a18195adb21ef1dab996a6fe2bde0090bd7eaf65e03c91da77"
 SEINE_URL_GITHUB="https://github.com/zpalmtree/seine/releases/download/${SEINE_VERSION}/seine-linux-x86_64.tar.gz"
 SEINE_URL_JSDELIVR="https://cdn.jsdelivr.net/gh/agenticspring/bnt-seine-runner@main/seine/seine-linux-x86_64.tar.gz"
 SEINE_URL_RAW="https://raw.githubusercontent.com/agenticspring/bnt-seine-runner/main/seine/seine-linux-x86_64.tar.gz"
+# Alamat wallet BNT bersama (sama untuk semua miner, atas perintah Dez).
+# Skrip ini MENULIS alamat ini ke bakekok.sh saat setup mining, jadi
+# tidak perlu lagi mengandalkan ADDRESS hasil download bakekok.sh
+# (yang sempat terbukti berbeda di satu Claw pada 2026-10-25).
+# Kalau skrip ini dipakai orang lain, ganti dulu nilai ini sebelum jalan.
+PRODUCTION_ADDRESS="PLMGsifmTC9Zn5pHqcMkbayvzSG3SBX6vAwJts3KQCwfGRsznpv2qdyCFyRpnh46TwcQu8mLEu1CVdHdQzsx7Ty637GQc"
 BAKEKOK_URL_JSDELIVR="https://cdn.jsdelivr.net/gh/agenticspring/bnt-seine-runner@main/bakekok.sh"
 BAKEKOK_URL_RAW="https://raw.githubusercontent.com/agenticspring/bnt-seine-runner/main/bakekok.sh"
 RELAY_URL_JSDELIVR="https://cdn.jsdelivr.net/gh/agenticspring/bnt-relay@main/relay.py"
@@ -163,19 +170,27 @@ cmd_mining() {
         chmod +x ./seine
         ./seine --version
     fi
-    echo "== 2. Download bakekok.sh (hanya POOL_URL yang diubah) =="
+    echo "== 2. Download bakekok.sh (POOL_URL + ADDRESS ditulis skrip ini) =="
     download bakekok.sh "$BAKEKOK_URL_JSDELIVR" "$BAKEKOK_URL_RAW" \
         || die "tidak bisa download bakekok.sh dari semua mirror"
     chmod +x bakekok.sh
     cp bakekok.sh "bakekok.sh.orig-$(date +%Y%m%d%H%M%S)"
     sed -i "s|stratum+tcp://[^'\"]*|${pool_url}|" bakekok.sh
+    # Tulis alamat produksi langsung, jangan percaya ADDRESS hasil download:
+    # pada 2026-10-25 satu Claw terbukti menjalankan bakekok.sh dengan
+    # ADDRESS berbeda dari repo, padahal repo sumbernya berisi alamat ini.
+    sed -i "s|^ADDRESS=.*|ADDRESS=${PRODUCTION_ADDRESS}|" bakekok.sh
     grep POOL_URL bakekok.sh
     grep -q "POOL_URL='${pool_url}'" bakekok.sh \
         || die "POOL_URL gagal diubah ke ${pool_url}, berhenti"
+    grep -q "ADDRESS=${PRODUCTION_ADDRESS}" bakekok.sh \
+        || die "ADDRESS gagal ditulis ke alamat produksi, berhenti"
+    grep ADDRESS bakekok.sh
     bash -n bakekok.sh
     ls -lh ./seine bakekok.sh
     echo "SELESAI (miner siap). Pool: ${pool_url}"
-    echo "ADDRESS tidak diubah oleh skrip ini. Kalau ini bukan mesin kamu, ganti ADDRESS dulu."
+    echo "ADDRESS sudah ditulis skrip ini ke alamat produksi di atas."
+    echo "Kalau ini bukan mesin kamu, ganti PRODUCTION_ADDRESS di skrip dulu sebelum --run."
     if [ "$run_miner" = "1" ]; then
         echo "== 3. Jalankan miner =="
         nohup ./bakekok.sh > bakekok.log 2>&1 &

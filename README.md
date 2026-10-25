@@ -153,11 +153,18 @@ Yang dikerjakan skrip miner, berurutan:
 2. Download Seine v0.2.21 (GitHub dulu, fallback mirror
    otomatis kalau mentok), **verifikasi SHA-256 resmi
    sebelum ekstrak**, `chmod +x`, cek `./seine --version`.
-3. Download `bakekok.sh`, lalu **hanya ubah baris
-   `POOL_URL`-nya**: ke `stratum+tcp://<IP-RELAY>:443`
-   kalau `--relay`, atau ke `stratum+tcp://bntpool.com:3333`
-   kalau `--direct`. Skrip berhenti kalau POOL_URL gagal
-   diubah.
+3. Download `bakekok.sh`, lalu skrip **menulis ulang dua baris**
+   dan memverifikasi keduanya dengan `grep` sebelum jalan:
+   `POOL_URL` ke `stratum+tcp://<IP-RELAY>:443` kalau
+   `--relay`, atau ke `stratum+tcp://bntpool.com:3333`
+   kalau `--direct`; dan `ADDRESS` ke alamat wallet BNT
+   bersama yang tertulis di repo ini:
+   `PLMGsifmTC9Zn5pHqcMkbayvzSG3SBX6vAwJts3KQCwfGRsznpv2qdyCFyRpnh46TwcQu8mLEu1CVdHdQzsx7Ty637GQc`.
+   Penulisan ulang ADDRESS ini disengaja: pada 2026-10-25
+   satu Claw terbukti menjalankan `bakekok.sh` dengan
+   ADDRESS berbeda dari repo sumbernya, jadi skrip ini
+   tidak lagi percaya ADDRESS hasil download. Skrip
+   berhenti kalau POOL_URL atau ADDRESS gagal diubah.
 4. Kalau pakai `--run`: miner langsung dijalankan dengan
    `nohup` + `disown`, lalu log di-`tail` 15 detik kemudian.
 
@@ -171,13 +178,19 @@ setelah download — jangan pernah menjalankan `bakekok.sh`
 hasil download mentah-mentah tanpa cek `grep POOL_URL`
 dulu, kalau tujuanmu adalah bntpool.
 
-**PERINGATAN soal `ADDRESS`:**
+**PERINGATAN soal `ADDRESS` (cara cepat):**
 
-Skrip ini **tidak mengubah** `ADDRESS` di `bakekok.sh`
-(di-download apa adanya dari repo `bnt-seine-runner`).
-Kalau ini bukan mesin kamu, ganti dulu `ADDRESS` di
-`bakekok.sh` sebelum `--run`. Yang diubah skrip hanya
-`POOL_URL`, dan itu diverifikasi dengan `grep` sebelum jalan.
+Cara cepat (`setup-complete.sh`) **menulis ulang**
+`ADDRESS` di `bakekok.sh` ke alamat wallet BNT bersama
+yang tertulis di repo ini:
+`PLMGsifmTC9Zn5pHqcMkbayvzSG3SBX6vAwJts3KQCwfGRsznpv2qdyCFyRpnh46TwcQu8mLEu1CVdHdQzsx7Ty637GQc`,
+lalu memverifikasinya dengan `grep` sebelum jalan.
+Ini disengaja supaya setup berikutnya langsung cepat
+dan tidak lagi bergantung pada ADDRESS hasil download.
+Kalau ini bukan mesin kamu, ganti dulu
+`PRODUCTION_ADDRESS` di `setup-complete.sh` sebelum
+`--run`. Cara manual di bawah tetap harus cek ADDRESS
+sendiri, karena di sana tidak ada penulisan otomatis.
 
 ### 1d. Verifikasi miner jalan (wajib)
 
