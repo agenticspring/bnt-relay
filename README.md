@@ -20,6 +20,15 @@ Mesin miner (B) ──stratum──> Mesin relay (A):443 ──stratum──> bn
 bntpool.com port 3333, fee pool 2,5%, PPLNS 6 jam,
 minimum payout 0,1 BNT.
 
+**Relay kita yang sudah jalan:**
+IP `139.59.115.14`, port `443` — alamat miner:
+`stratum+tcp://139.59.115.14:443`.
+Relay ini jalan di droplet DO `vps-do-sgp1`, target
+bntpool.com:3333, dan IP egress ArkClaw `124.174.3.209`
+sudah di-allowlist. Kalau mesin minermu keluar lewat IP
+lain, IP itu harus ditambahkan dulu ke allowlist relay
+sebelum miner diarahkan ke sini (lihat bagian 2).
+
 **Miner:** Seine v0.2.21, 1 thread, 1024 HugePages (2 MiB).
 
 ---
@@ -116,7 +125,13 @@ sama, ulangi dengan IP-nya (boleh beberapa IP sekaligus):
 
 ### 1c. Pasang miner (di mesin B)
 
-**Lewat relay (cara utama):**
+**Lewat relay kita (cara utama, langsung pakai IP di atas):**
+
+```bash
+./setup-complete.sh mining --relay 139.59.115.14 --run
+```
+
+Kalau pakai relay lain, ganti IP-nya:
 
 ```bash
 ./setup-complete.sh mining --relay <IP-MESIN-RELAY-A> --run
