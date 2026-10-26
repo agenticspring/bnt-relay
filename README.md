@@ -165,14 +165,21 @@ Yang dikerjakan skrip miner, berurutan:
    ADDRESS berbeda dari repo sumbernya, jadi skrip ini
    tidak lagi percaya ADDRESS hasil download. Skrip
    berhenti kalau POOL_URL atau ADDRESS gagal diubah.
-4. Kalau pakai `--run`: miner dipasang sebagai service systemd
-   `bnt-miner` (auto-restart kalau proses mati, auto-start
-   setelah reboot), lalu log dicek 15 detik kemudian lewat
-   `journalctl`. Mesin lama yang dulu jalan via `nohup`:
-   cukup jalankan ulang perintah `--run` yang sama — skrip
-   menghentikan proses `nohup` lama dulu, lalu service yang
-   mengambil alih. Kalau mesin tidak pakai systemd, skrip
-   fallback ke `nohup` dan auto-restart tidak berlaku.
+4. Kalau pakai `--run`: miner dipasang dengan auto-restart,
+   tetap paste-only — tidak ada langkah manual tambahan.
+   Lapis 1: service systemd `bnt-miner` (auto-restart kalau
+   proses mati, auto-start setelah reboot), log dicek lewat
+   `journalctl`. Lapis 2: kalau tidak ada systemd tapi ada
+   `crontab`, skrip memasang `@reboot` + cek tiap 5 menit
+   lewat `start-miner.sh`, selama daemon cron jalan saat
+   boot. Lapis 3: hanya kalau systemd dan cron sama-sama
+   tidak tersedia, skrip fallback ke `nohup` dan auto-restart
+   tidak berlaku. Mesin lama yang dulu jalan via `nohup`:
+   cukup jalankan ulang perintah `--run` yang sama — untuk
+   lapis systemd, skrip menghentikan proses `nohup` lama
+   dulu supaya tidak dobel; untuk lapis cron, proses lama
+   dibiarkan jalan dan cron yang akan menyalakannya lagi
+   kalau mati.
 
 **PERINGATAN PENTING soal `bakekok.sh` dan pool:**
 
@@ -532,6 +539,11 @@ mencukupi saat service start, service akan gagal lalu
 di-restart otomatis tiap 30 detik sampai alokasi berhasil
 — itu perilaku yang disengaja, bukan loop error yang
 harus dihentikan manual.
+
+Kalau mesin tidak pakai systemd, `mining --run` tidak
+gagal total: ia memasang cron `@reboot` + cek tiap
+5 menit (`start-miner.sh`). Ceknya dengan `crontab -l`,
+bukan `systemctl`.
 
 ---
 

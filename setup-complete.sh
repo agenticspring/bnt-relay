@@ -7,10 +7,13 @@
 #       allowlist. Target relay: bntpool.com:3333 (pool lama).
 #   ./setup-complete.sh mining [--direct | --relay IP-RELAY] [--run]
 #       Pasang miner di mesin ini: Seine v0.2.21 + bakekok.sh.
-#       Dengan --run, miner dipasang sebagai service systemd
-#       (bnt-miner): auto-restart kalau proses mati, dan
-#       auto-start lagi setelah reboot. Tanpa systemd, fallback
-#       ke background biasa dan auto-restart tidak berlaku.
+#       Dengan --run, miner dipasang dengan auto-restart,
+#       tetap paste-only: lapis 1 service systemd (bnt-miner)
+#       kalau tersedia; lapis 2 cron (@reboot + cek tiap
+#       5 menit) kalau tidak ada systemd tapi ada cron;
+#       lapis 3 background biasa hanya kalau systemd dan cron
+#       sama-sama tidak tersedia, dan di lapis itu auto-restart
+#       tidak berlaku.
 #       Default: lewat relay (perlu --relay IP-RELAY). Pakai
 #       --direct hanya kalau direct ke bntpool terbukti jalan
 #       dari mesin ini (dari ArkClaw direct terbukti kena RST).
@@ -224,8 +227,31 @@ cmd_mining() {
             grep HugePages /proc/meminfo || true
             echo "Cari di log: 'login accepted' + share 'accepted'. Kalau HugePages <1024, lihat README bagian troubleshooting."
             echo "Miner jalan sebagai service bnt-miner (auto-restart + auto-start setelah reboot)."
+        elif command -v crontab >/dev/null 2>&1; then
+            echo "systemd tidak tersedia di mesin ini, pasang auto-restart via cron (@reboot + cek tiap 5 menit)."
+            echo "Tetap paste-only: tidak ada langkah manual tambahan."
+            cat > /root/bnt-seine-runner/start-miner.sh <<'EOS'
+#!/usr/bin/env bash
+if pgrep -f '/root/bnt-seine-runner/seine' >/dev/null 2>&1; then exit 0; fi
+cd /root/bnt-seine-runner
+nohup ./bakekok.sh > bakekok.log 2>&1 &
+disown
+EOS
+            chmod +x /root/bnt-seine-runner/start-miner.sh
+            (crontab -l 2>/dev/null | grep -v '/root/bnt-seine-runner/start-miner.sh'; printf '@reboot sleep 20 /root/bnt-seine-runner/start-miner.sh\n*/5 * * * * /root/bnt-seine-runner/start-miner.sh\n') | crontab -
+            crontab -l 2>/dev/null | grep 'start-miner.sh' || true
+            if ! pgrep -x cron >/dev/null 2>&1 && ! pgrep -x crond >/dev/null 2>&1; then
+                if command -v service >/dev/null 2>&1; then service cron start 2>/dev/null || service crond start 2>/dev/null || true; fi
+                echo "PERINGATAN: daemon cron belum terlihat jalan; @reboot hanya jalan kalau cron daemon aktif saat boot."
+            fi
+            /root/bnt-seine-runner/start-miner.sh
+            sleep 15
+            tail -n 40 bakekok.log
+            grep HugePages /proc/meminfo || true
+            echo "Cari di log: 'login accepted' + share 'accepted'. Kalau HugePages <1024, lihat README bagian troubleshooting."
+            echo "Miner auto-start via @reboot dan dicek/dinyalakan lagi tiap 5 menit selama cron daemon jalan saat boot."
         else
-            echo "PERINGATAN: systemd tidak tersedia di mesin ini, fallback ke background biasa (nohup)."
+            echo "PERINGATAN: systemd dan cron sama-sama tidak tersedia di mesin ini, fallback ke background biasa (nohup)."
             echo "Auto-restart setelah reboot TIDAK berlaku di mesin ini."
             nohup ./bakekok.sh > bakekok.log 2>&1 &
             disown
