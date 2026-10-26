@@ -1,0 +1,14 @@
+[Unit]
+Description=BNT Seine miner (via bakekok.sh)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/bnt-seine-runner
+ExecStart=/root/bnt-seine-runner/bakekok.sh
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

@@ -165,8 +165,14 @@ Yang dikerjakan skrip miner, berurutan:
    ADDRESS berbeda dari repo sumbernya, jadi skrip ini
    tidak lagi percaya ADDRESS hasil download. Skrip
    berhenti kalau POOL_URL atau ADDRESS gagal diubah.
-4. Kalau pakai `--run`: miner langsung dijalankan dengan
-   `nohup` + `disown`, lalu log di-`tail` 15 detik kemudian.
+4. Kalau pakai `--run`: miner dipasang sebagai service systemd
+   `bnt-miner` (auto-restart kalau proses mati, auto-start
+   setelah reboot), lalu log dicek 15 detik kemudian lewat
+   `journalctl`. Mesin lama yang dulu jalan via `nohup`:
+   cukup jalankan ulang perintah `--run` yang sama — skrip
+   menghentikan proses `nohup` lama dulu, lalu service yang
+   mengambil alih. Kalau mesin tidak pakai systemd, skrip
+   fallback ke `nohup` dan auto-restart tidak berlaku.
 
 **PERINGATAN PENTING soal `bakekok.sh` dan pool:**
 
@@ -210,14 +216,17 @@ harus menunjukkan urutan ini:
    1,7–1,8 H/s untuk 1 thread di Claw (tergantung CPU),
    `submitted` dan `accepted` bertambah, `stale` mendekati 0.
 
-Perintah ceknya:
+Perintah ceknya (miner service):
 
 ```bash
-cd /root/bnt-seine-runner
-tail -n 50 bakekok.log
+journalctl -u bnt-miner -n 50 --no-pager
 ps aux | grep -E '[s]eine'
 grep HugePages /proc/meminfo
 ```
+
+Mesin lama yang masih `nohup` (belum migrasi) tetap
+cek lewat `tail -n 50 bakekok.log` di
+`/root/bnt-seine-runner`.
 
 Kalau poin 3 tidak pernah muncul, jangan ulang install
 membabi buta — lihat bagian troubleshooting sesuai gejalanya.
@@ -438,20 +447,24 @@ relay sesaat (miner akan reconnect sendiri) — satu baris
 `pool offline` di log miner lama saat restart relay itu
 efek restart, bukan loop.
 
-### Miner (di mesin miner)
+### Miner (di mesin miner, service systemd)
 
 ```bash
-cd /root/bnt-seine-runner
-ps aux | grep -E '[s]eine'
-tail -n 50 bakekok.log
+systemctl status bnt-miner --no-pager
+journalctl -u bnt-miner -n 50 --no-pager
+systemctl is-enabled bnt-miner
 # hentikan miner saja (tanpa menghapus apa-apa):
-kill <PID-miner>
-sleep 2
-ps aux | grep -E '[s]eine'
+systemctl stop bnt-miner
 # jalankan lagi:
-nohup ./bakekok.sh > bakekok.log 2>&1 &
-disown
+systemctl start bnt-miner
+# restart:
+systemctl restart bnt-miner
 ```
+
+Mesin lama yang masih jalan via `nohup` (bukan service):
+jalankan ulang perintah `--run` dari bagian 1c untuk
+migrasi ke service — jangan jalankan `nohup` manual lagi
+bersamaan dengan service, supaya tidak ada dua miner.
 
 ### Pindah miner yang sudah jalan ke pool lain
 
@@ -479,38 +492,46 @@ Aturan yang sama berlaku: hanya POOL_URL yang diubah,
 ADDRESS tidak disentuh, dan verifikasi `login accepted`
 + share accepted sebelum ditinggal.
 
-### Miner sebagai service systemd (VPS, bukan Claw)
+### Miner sebagai service systemd (sekarang default)
 
-Kalau mesin miner adalah VPS dengan systemd dan kamu mau
-miner hidup otomatis setelah reboot, buat unit ini
-(sesuaikan pool-nya ke relay atau direct):
+Sejak update ini, mode `mining --run` di atas sudah
+memasang service ini otomatis — bagian ini hanya
+penjelasan unitnya, bukan langkah manual yang wajib
+diulang. Unitnya ada di repo sebagai `bnt-miner.service`:
 
 ```ini
 [Unit]
-Description=BNT Seine miner
+Description=BNT Seine miner (via bakekok.sh)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
+Type=simple
 WorkingDirectory=/root/bnt-seine-runner
 ExecStart=/root/bnt-seine-runner/bakekok.sh
 Restart=always
-RestartSec=10
+RestartSec=30
 
 [Install]
 WantedBy=multi-user.target
 ```
 
+Kalau perlu memasang manual (misalnya service terhapus):
+
 ```bash
-cp <unit-di-atas> /etc/systemd/system/seine-bnt.service
+cp bnt-miner.service /etc/systemd/system/bnt-miner.service
 systemctl daemon-reload
-systemctl enable --now seine-bnt
-journalctl -u seine-bnt -f
+systemctl enable --now bnt-miner
+journalctl -u bnt-miner -f
 ```
 
 Catatan: `bakekok.sh` sendiri sudah menyiapkan HugePages
 dan menjalankan `./seine` di foreground di dalam service,
-jadi unit ini tidak perlu `nohup`.
+jadi unit ini tidak perlu `nohup`. Kalau HugePages belum
+mencukupi saat service start, service akan gagal lalu
+di-restart otomatis tiap 30 detik sampai alokasi berhasil
+— itu perilaku yang disengaja, bukan loop error yang
+harus dihentikan manual.
 
 ---
 
@@ -752,8 +773,8 @@ tidak diteruskan relay). Mining tetap jalan selama
       + STATS bertambah + `stale` mendekati 0.
 - [ ] Miner: `HugePages_Total=1024`, proses `./seine` masih
       ada setelah terminal ditutup lalu dibuka lagi.
-- [ ] Kalau pakai service systemd: `systemctl is-enabled`
-      dan `is-active` untuk service yang dipakai.
+- [ ] Miner service: `systemctl is-enabled bnt-miner` dan
+      `systemctl is-active bnt-miner` (auto-start setelah reboot).
 
 ---
 
@@ -769,4 +790,6 @@ tidak diteruskan relay). Mining tetap jalan selama
   `bntpool.com:3333`, lengkap dengan perbaikan timeout
   `settimeout(None)` setelah connect.
 - `bnt-relay.service` — unit systemd relay.
+- `bnt-miner.service` — unit systemd miner (auto-restart +
+  auto-start setelah reboot, dipakai mode `mining --run`).
 - `README.md` — tutorial lengkap ini.

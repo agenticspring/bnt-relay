@@ -170,14 +170,18 @@ bash -n bakekok.sh
 `grep POOL_URL` harus menunjukkan pool yang kamu mau,
 bukan kc lagi.
 
-### 4d. Jalankan miner
+### 4d. Jalankan miner (service systemd, default via --run)
+
+Cara cepat tetap pakai `--run` dari bagian 1 — itu sudah
+memasang service `bnt-miner`. Manual di bawah hanya
+kalau service terhapus:
 
 ```bash
-cd /root/bnt-seine-runner
-nohup ./bakekok.sh > bakekok.log 2>&1 &
-disown
+cp bnt-miner.service /etc/systemd/system/bnt-miner.service
+systemctl daemon-reload
+systemctl enable --now bnt-miner
 sleep 15
-tail -n 50 bakekok.log
+journalctl -u bnt-miner -n 50 --no-pager
 grep HugePages /proc/meminfo
 ps aux | grep -E '[s]eine'
 ```
@@ -195,56 +199,32 @@ systemctl restart bnt-relay
 systemctl stop bnt-relay
 ```
 
-Miner:
+Miner (service):
 
 ```bash
-cd /root/bnt-seine-runner
-ps aux | grep -E '[s]eine'
-tail -n 50 bakekok.log
-kill <PID-MINER>
-sleep 2
-ps aux | grep -E '[s]eine'
-nohup ./bakekok.sh > bakekok.log 2>&1 &
-disown
+systemctl status bnt-miner --no-pager
+journalctl -u bnt-miner -n 50 --no-pager
+systemctl restart bnt-miner
+systemctl stop bnt-miner
 ```
 
 Pindah miner yang sudah jalan ke pool lain:
 
 ```bash
 cd /root/bnt-seine-runner
-ps aux | grep -E '[s]eine'
-kill <PID-MINER-LAMA>
-sleep 2
 cp bakekok.sh bakekok.sh.<POOL-LAMA>
 sed -i 's|stratum+tcp://<POOL-LAMA>|stratum+tcp://<POOL-BARU>|' bakekok.sh
 grep POOL_URL bakekok.sh
 bash -n bakekok.sh
-nohup ./bakekok.sh > bakekok.log 2>&1 &
-disown
+systemctl restart bnt-miner
 sleep 15
-tail -n 50 bakekok.log
+journalctl -u bnt-miner -n 50 --no-pager
 ```
 
-Miner sebagai service systemd (VPS, bukan Claw):
-
-```bash
-cat > /etc/systemd/system/seine-bnt.service <<'EOF'
-[Unit]
-Description=BNT Seine miner
-After=network-online.target
-Wants=network-online.target
-[Service]
-WorkingDirectory=/root/bnt-seine-runner
-ExecStart=/root/bnt-seine-runner/bakekok.sh
-Restart=always
-RestartSec=10
-[Install]
-WantedBy=multi-user.target
-EOF
-systemctl daemon-reload
-systemctl enable --now seine-bnt
-journalctl -u seine-bnt -f
-```
+Miner sebagai service systemd — unitnya di repo
+(`bnt-miner.service`), sudah dipasang otomatis oleh
+mode `mining --run`. Service lama manual bernama
+`seine-bnt` tidak lagi dipakai untuk instalasi baru.
 
 ---
 

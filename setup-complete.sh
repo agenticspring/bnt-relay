@@ -7,6 +7,10 @@
 #       allowlist. Target relay: bntpool.com:3333 (pool lama).
 #   ./setup-complete.sh mining [--direct | --relay IP-RELAY] [--run]
 #       Pasang miner di mesin ini: Seine v0.2.21 + bakekok.sh.
+#       Dengan --run, miner dipasang sebagai service systemd
+#       (bnt-miner): auto-restart kalau proses mati, dan
+#       auto-start lagi setelah reboot. Tanpa systemd, fallback
+#       ke background biasa dan auto-restart tidak berlaku.
 #       Default: lewat relay (perlu --relay IP-RELAY). Pakai
 #       --direct hanya kalau direct ke bntpool terbukti jalan
 #       dari mesin ini (dari ArkClaw direct terbukti kena RST).
@@ -40,6 +44,8 @@ RELAY_URL_JSDELIVR="https://cdn.jsdelivr.net/gh/agenticspring/bnt-relay@main/rel
 RELAY_URL_RAW="https://raw.githubusercontent.com/agenticspring/bnt-relay/main/relay.py"
 SERVICE_URL_JSDELIVR="https://cdn.jsdelivr.net/gh/agenticspring/bnt-relay@main/bnt-relay.service"
 SERVICE_URL_RAW="https://raw.githubusercontent.com/agenticspring/bnt-relay/main/bnt-relay.service"
+MINER_SERVICE_URL_JSDELIVR="https://cdn.jsdelivr.net/gh/agenticspring/bnt-relay@main/bnt-miner.service"
+MINER_SERVICE_URL_RAW="https://raw.githubusercontent.com/agenticspring/bnt-relay/main/bnt-miner.service"
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 need_root() { [ "$(id -u)" = "0" ] || die "jalankan sebagai root"; }
@@ -192,16 +198,45 @@ cmd_mining() {
     echo "ADDRESS sudah ditulis skrip ini ke alamat produksi di atas."
     echo "Kalau ini bukan mesin kamu, ganti PRODUCTION_ADDRESS di skrip dulu sebelum --run."
     if [ "$run_miner" = "1" ]; then
-        echo "== 3. Jalankan miner =="
-        nohup ./bakekok.sh > bakekok.log 2>&1 &
-        disown
-        sleep 15
-        tail -n 40 bakekok.log
-        grep HugePages /proc/meminfo || true
-        echo "Cari di log: 'login accepted' + share 'accepted'. Kalau HugePages <1024, lihat README bagian troubleshooting."
+        echo "== 3. Pasang + jalankan miner sebagai service systemd =="
+        if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+            # Migrasi dari versi lama (nohup): hentikan proses lama dulu
+            # supaya tidak ada dua miner jalan bersamaan.
+            pkill -f 'bakekok.sh' 2>/dev/null || true
+            pkill -f '/root/bnt-seine-runner/seine' 2>/dev/null || true
+            sleep 2
+            local script_dir
+            script_dir="$(cd "$(dirname "$0")" && pwd)"
+            if [ -f "$script_dir/bnt-miner.service" ]; then
+                cp "$script_dir/bnt-miner.service" /etc/systemd/system/bnt-miner.service
+            elif [ -f bnt-miner.service ]; then
+                cp bnt-miner.service /etc/systemd/system/bnt-miner.service
+            else
+                download /etc/systemd/system/bnt-miner.service \
+                    "$MINER_SERVICE_URL_JSDELIVR" "$MINER_SERVICE_URL_RAW" \
+                    || die "tidak bisa download bnt-miner.service"
+            fi
+            systemctl daemon-reload
+            systemctl enable --now bnt-miner
+            sleep 15
+            systemctl is-active bnt-miner
+            journalctl -u bnt-miner -n 40 --no-pager || true
+            grep HugePages /proc/meminfo || true
+            echo "Cari di log: 'login accepted' + share 'accepted'. Kalau HugePages <1024, lihat README bagian troubleshooting."
+            echo "Miner jalan sebagai service bnt-miner (auto-restart + auto-start setelah reboot)."
+        else
+            echo "PERINGATAN: systemd tidak tersedia di mesin ini, fallback ke background biasa (nohup)."
+            echo "Auto-restart setelah reboot TIDAK berlaku di mesin ini."
+            nohup ./bakekok.sh > bakekok.log 2>&1 &
+            disown
+            sleep 15
+            tail -n 40 bakekok.log
+            grep HugePages /proc/meminfo || true
+            echo "Cari di log: 'login accepted' + share 'accepted'. Kalau HugePages <1024, lihat README bagian troubleshooting."
+        fi
     else
-        echo "Jalankan miner dengan:"
-        echo "  cd /root/bnt-seine-runner && nohup ./bakekok.sh > bakekok.log 2>&1 & disown && sleep 15 && tail -n 40 bakekok.log"
+        echo "Miner siap, tapi belum dipasang sebagai service."
+        echo "Jalankan ulang dengan --run untuk memasang service auto-restart (bnt-miner)."
     fi
 }
 
