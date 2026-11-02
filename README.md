@@ -97,3 +97,13 @@ ss -ltnp | grep ':443'
 # HugePages kurang (butuh 1024 x 2MiB)
 sysctl vm.nr_hugepages=1024
 ```
+
+## Upgrade versi seine
+
+Versi dipin di skrip (v0.2.45). Upgrade ke versi baru:
+
+```bash
+SEINE_VERSION=v0.2.46 SEINE_SHA256=<sha-dari-SHA256SUMS.txt> ./setup-complete.sh mining --relay 82.39.206.183 --run
+```
+
+SHA256 ambil dari `SHA256SUMS.txt` di release seine. Auto-restart: systemd `Restart=always` (VPS mati/hidup lagi = miner jalan sendiri); di mesin tanpa systemd, cron `@reboot` + cek tiap 5 menit.

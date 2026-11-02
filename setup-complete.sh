@@ -30,8 +30,8 @@
 # berbeda di satu Claw tidak akan lolos lagi.
 set -euo pipefail
 
-SEINE_VERSION="v0.2.21"
-SEINE_SHA256="a94248aac209e9a18195adb21ef1dab996a6fe2bde0090bd7eaf65e03c91da77"
+SEINE_VERSION="${SEINE_VERSION:-v0.2.45}"
+SEINE_SHA256="${SEINE_SHA256:-19e3c979d14f38664bdfb28c2b48e4b0580a1cb711bae2ee68bcbc9ea41bd173}"
 SEINE_URL_GITHUB="https://github.com/zpalmtree/seine/releases/download/${SEINE_VERSION}/seine-linux-x86_64.tar.gz"
 SEINE_URL_JSDELIVR="https://cdn.jsdelivr.net/gh/agenticspring/bnt-seine-runner@main/seine/seine-linux-x86_64.tar.gz"
 SEINE_URL_RAW="https://raw.githubusercontent.com/agenticspring/bnt-seine-runner/main/seine/seine-linux-x86_64.tar.gz"
@@ -168,8 +168,8 @@ cmd_mining() {
     echo "== 1. Folder + binary Seine ${SEINE_VERSION} =="
     mkdir -p /root/bnt-seine-runner
     cd /root/bnt-seine-runner
-    if [ -x ./seine ] && ./seine --version 2>/dev/null | grep -q "v0.2.21"; then
-        echo "Binary ./seine v0.2.21 sudah ada, download dilewati."
+    if [ -x ./seine ] && ./seine --version 2>/dev/null | grep -q "${SEINE_VERSION}"; then
+        echo "Binary ./seine ${SEINE_VERSION} sudah ada, download dilewati (override: SEINE_VERSION=vX.Y.Z ./setup-complete.sh mining ...)."
     else
         download seine.tar.gz "$SEINE_URL_GITHUB" "$SEINE_URL_JSDELIVR" "$SEINE_URL_RAW" \
             || die "tidak bisa download seine.tar.gz dari semua mirror"
@@ -238,7 +238,7 @@ nohup ./bakekok.sh > bakekok.log 2>&1 &
 disown
 EOS
             chmod +x /root/bnt-seine-runner/start-miner.sh
-            (crontab -l 2>/dev/null | grep -v '/root/bnt-seine-runner/start-miner.sh'; printf '@reboot sleep 20 /root/bnt-seine-runner/start-miner.sh\n*/5 * * * * /root/bnt-seine-runner/start-miner.sh\n') | crontab -
+            (crontab -l 2>/dev/null | grep -v '/root/bnt-seine-runner/start-miner.sh'; printf '@reboot sleep 20 && /root/bnt-seine-runner/start-miner.sh\n*/5 * * * * /root/bnt-seine-runner/start-miner.sh\n') | crontab -
             crontab -l 2>/dev/null | grep 'start-miner.sh' || true
             if ! pgrep -x cron >/dev/null 2>&1 && ! pgrep -x crond >/dev/null 2>&1; then
                 if command -v service >/dev/null 2>&1; then service cron start 2>/dev/null || service crond start 2>/dev/null || true; fi

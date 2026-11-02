@@ -6,6 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=/root/bnt-seine-runner
+ExecStartPre=/bin/sh -c 'sysctl -w vm.nr_hugepages=1024 || true'
 ExecStart=/root/bnt-seine-runner/bakekok.sh
 Restart=always
 RestartSec=30
