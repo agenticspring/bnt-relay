@@ -21,9 +21,9 @@ bntpool.com port 3333, fee pool 2,5%, PPLNS 6 jam,
 minimum payout 0,1 BNT.
 
 **Relay kita yang sudah jalan:**
-IP `139.59.115.14`, port `443` — alamat miner:
-`stratum+tcp://139.59.115.14:443`.
-Relay ini jalan di droplet DO `vps-do-sgp1`, target
+IP `82.39.206.183`, port `443` — alamat miner:
+`stratum+tcp://82.39.206.183:443`.
+Relay ini jalan di VPS `empero` (82.39.206.183), target
 bntpool.com:3333, dan IP egress ArkClaw `124.174.3.209`
 sudah di-allowlist. Kalau mesin minermu keluar lewat IP
 lain, IP itu harus ditambahkan dulu ke allowlist relay
@@ -128,7 +128,7 @@ sama, ulangi dengan IP-nya (boleh beberapa IP sekaligus):
 **Lewat relay kita (cara utama, langsung pakai IP di atas):**
 
 ```bash
-./setup-complete.sh mining --relay 139.59.115.14 --run
+./setup-complete.sh mining --relay 82.39.206.183 --run
 ```
 
 Kalau pakai relay lain, ganti IP-nya:
