@@ -6,8 +6,7 @@ Allowlist: `124.174.3.209` (ArkClaw egress). IP miner lain harus ditambahkan dul
 ## Setup relay (mesin relay)
 
 ```bash
-git clone https://github.com/agenticspring/bnt-relay.git
-cd bnt-relay
+curl -O https://raw.githubusercontent.com/agenticspring/bnt-relay/main/setup-complete.sh
 chmod +x setup-complete.sh
 ./setup-complete.sh relay <IP-MINER> [IP-MINER...]
 ```
@@ -24,8 +23,7 @@ iptables-save > /etc/iptables/rules.v4
 Lewat relay (utama):
 
 ```bash
-git clone https://github.com/agenticspring/bnt-relay.git
-cd bnt-relay
+curl -O https://raw.githubusercontent.com/agenticspring/bnt-relay/main/setup-complete.sh
 chmod +x setup-complete.sh
 ./setup-complete.sh mining --relay 82.39.206.183 --run
 ```
