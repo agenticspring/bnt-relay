@@ -96,12 +96,18 @@ ss -ltnp | grep ':443'
 sysctl vm.nr_hugepages=1024
 ```
 
-## Upgrade versi seine
+## Versi seine
 
-Versi dipin di skrip (v0.2.45). Upgrade ke versi baru:
+Skrip TIDAK lagi meng-hardcode versi Seine. Setiap kali `mining` dijalankan, skrip menentukan versi terbaru dari rilis GitHub zpalmtree/seine (API dulu, fallback redirect `releases/latest`), lalu mengambil SHA-256-nya dari `SHA256SUMS.txt` rilis itu dan memverifikasi tarball terhadap hash tersebut sebelum dipakai. Mirror lama yang masih berisi versi lama tidak akan lolos verifikasi.
+
+Jalankan ulang skrip mining untuk upgrade ke versi terbaru:
 
 ```bash
-SEINE_VERSION=v0.2.46 SEINE_SHA256=<sha-dari-SHA256SUMS.txt> ./setup-complete.sh mining --relay 82.39.206.183 --run
+./setup-complete.sh mining --relay 82.39.206.183 --run
 ```
 
-SHA256 ambil dari `SHA256SUMS.txt` di release seine. Auto-restart: systemd `Restart=always` (VPS mati/hidup lagi = miner jalan sendiri); di mesin tanpa systemd, cron `@reboot` + cek tiap 5 menit.
+Pin manual ke versi tertentu masih bisa (hash-nya tetap diambil dari `SHA256SUMS.txt` rilis itu, kecuali `SEINE_SHA256` juga di-set):
+
+```bash
+SEINE_VERSION=v0.2.46 ./setup-complete.sh mining --relay 82.39.206.183 --run
+```

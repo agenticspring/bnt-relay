@@ -6,7 +6,8 @@
 #       Pasang relay di mesin ini: relay.py + systemd + firewall
 #       allowlist. Target relay: bntpool.com:3333 (pool lama).
 #   ./setup-complete.sh mining [--direct | --relay IP-RELAY] [--run]
-#       Pasang miner di mesin ini: Seine v0.2.21 + bakekok.sh.
+#       Pasang miner di mesin ini: Seine (versi terbaru dari rilis
+#       GitHub, TIDAK di-hardcode) + bakekok.sh.
 #       Dengan --run, miner dipasang dengan auto-restart,
 #       tetap paste-only: lapis 1 service systemd (bnt-miner)
 #       kalau tersedia; lapis 2 cron (@reboot + cek tiap
@@ -30,11 +31,40 @@
 # berbeda di satu Claw tidak akan lolos lagi.
 set -euo pipefail
 
-SEINE_VERSION="${SEINE_VERSION:-v0.2.45}"
-SEINE_SHA256="${SEINE_SHA256:-19e3c979d14f38664bdfb28c2b48e4b0580a1cb711bae2ee68bcbc9ea41bd173}"
-SEINE_URL_GITHUB="https://github.com/zpalmtree/seine/releases/download/${SEINE_VERSION}/seine-linux-x86_64.tar.gz"
-SEINE_URL_JSDELIVR="https://cdn.jsdelivr.net/gh/agenticspring/bnt-seine-runner@main/seine/seine-linux-x86_64.tar.gz"
-SEINE_URL_RAW="https://raw.githubusercontent.com/agenticspring/bnt-seine-runner/main/seine/seine-linux-x86_64.tar.gz"
+# Versi Seine TIDAK di-hardcode di sini lagi. Saat mining dijalankan,
+# resolve_seine_release() di bawah menentukan versinya dari rilis
+# terbaru GitHub (SEINE_VERSION yang di-set lewat environment tetap
+# dihormati sebagai pin manual, dan SEINE_SHA256 yang di-set lewat
+# environment tetap dihormati sebagai hash manual).
+# Hash verifikasi selalu diambil dari SHA256SUMS.txt rilis yang
+# bersangkutan, bukan dari nilai yang ditulis di skrip ini.
+resolve_seine_release() {
+    if [ -z "${SEINE_VERSION:-}" ]; then
+        SEINE_VERSION="$(curl -fsSL --connect-timeout 15 --max-time 30 https://api.github.com/repos/zpalmtree/seine/releases/latest 2>/dev/null | grep -o '"tag_name": *"[^"]*"' | head -n 1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')"
+    fi
+    if [ -z "${SEINE_VERSION:-}" ]; then
+        local latest_url
+        latest_url="$(curl -fsSL -o /dev/null -w '%{url_effective}' --connect-timeout 15 --max-time 30 https://github.com/zpalmtree/seine/releases/latest 2>/dev/null || true)"
+        SEINE_VERSION="${latest_url##*/tag/}"
+        [ "$SEINE_VERSION" != "$latest_url" ] || SEINE_VERSION=""
+    fi
+    [ -n "${SEINE_VERSION:-}" ] || die "tidak bisa menentukan versi Seine terbaru (GitHub API + redirect gagal)"
+    SEINE_URL_GITHUB="https://github.com/zpalmtree/seine/releases/download/${SEINE_VERSION}/seine-linux-x86_64.tar.gz"
+    SEINE_URL_JSDELIVR="https://cdn.jsdelivr.net/gh/agenticspring/bnt-seine-runner@main/seine/seine-linux-x86_64.tar.gz"
+    SEINE_URL_RAW="https://raw.githubusercontent.com/agenticspring/bnt-seine-runner/main/seine/seine-linux-x86_64.tar.gz"
+    if [ -n "${SEINE_SHA256:-}" ]; then
+        echo "Seine ${SEINE_VERSION} (SHA-256 dari environment)"
+        return 0
+    fi
+    local sums_file
+    sums_file="$(mktemp)"
+    if curl -fsSL --connect-timeout 15 --max-time 60 "https://github.com/zpalmtree/seine/releases/download/${SEINE_VERSION}/SHA256SUMS.txt" -o "$sums_file" && [ -s "$sums_file" ]; then
+        SEINE_SHA256="$(grep 'seine-linux-x86_64.tar.gz' "$sums_file" | awk '{print $1}' | head -n 1)"
+    fi
+    rm -f "$sums_file"
+    [ -n "${SEINE_SHA256:-}" ] || die "tidak bisa mengambil SHA-256 resmi untuk ${SEINE_VERSION} dari SHA256SUMS.txt rilisnya"
+    echo "Seine ${SEINE_VERSION} (SHA-256 dari SHA256SUMS.txt rilis resmi)"
+}
 # Alamat wallet BNT bersama (sama untuk semua miner, atas perintah Dez).
 # Skrip ini MENULIS alamat ini ke bakekok.sh saat setup mining, jadi
 # tidak perlu lagi mengandalkan ADDRESS hasil download bakekok.sh
@@ -165,16 +195,30 @@ cmd_mining() {
     else
         die "pilih salah satu: --relay <IP-RELAY> atau --direct"
     fi
+    resolve_seine_release
     echo "== 1. Folder + binary Seine ${SEINE_VERSION} =="
     mkdir -p /root/bnt-seine-runner
     cd /root/bnt-seine-runner
     if [ -x ./seine ] && ./seine --version 2>/dev/null | grep -q "${SEINE_VERSION}"; then
-        echo "Binary ./seine ${SEINE_VERSION} sudah ada, download dilewati (override: SEINE_VERSION=vX.Y.Z ./setup-complete.sh mining ...)."
+        echo "Binary ./seine ${SEINE_VERSION} sudah ada, download dilewati (pin manual: SEINE_VERSION=vX.Y.Z ./setup-complete.sh mining ...)."
     else
-        download seine.tar.gz "$SEINE_URL_GITHUB" "$SEINE_URL_JSDELIVR" "$SEINE_URL_RAW" \
-            || die "tidak bisa download seine.tar.gz dari semua mirror"
-        echo "${SEINE_SHA256}  seine.tar.gz" | sha256sum -c - \
-            || die "SHA-256 seine.tar.gz tidak cocok, berhenti (file corrupt / bukan rilis resmi)"
+        # Coba tiap mirror sampai ada yang SHA-256-nya cocok dengan
+        # SHA256SUMS.txt rilis resmi. Mirror lama yang masih berisi
+        # versi lama TIDAK akan lolos: hash-nya tidak cocok, lalu
+        # dicoba mirror berikutnya, bukan langsung dipakai.
+        local verified=0 url
+        for url in "$SEINE_URL_GITHUB" "$SEINE_URL_JSDELIVR" "$SEINE_URL_RAW"; do
+            echo "Mencoba download: $url"
+            rm -f seine.tar.gz
+            if curl -L --connect-timeout 15 --max-time 120 "$url" -o seine.tar.gz && [ -s seine.tar.gz ]; then
+                if echo "${SEINE_SHA256}  seine.tar.gz" | sha256sum -c -; then
+                    verified=1
+                    break
+                fi
+                echo "SHA-256 tidak cocok untuk $url, coba mirror berikutnya"
+            fi
+        done
+        [ "$verified" = "1" ] || die "tidak bisa download seine.tar.gz yang SHA-256-nya cocok dari semua mirror"
         tar -xzf seine.tar.gz
         chmod +x ./seine
         ./seine --version
